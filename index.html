@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Video Hub Pro</title>
+    <style>
+        :root {
+            --bg: #0f172a; --card: #1e293b; --primary: #6366f1;
+            --accent: #f43f5e; --text: #f8fafc; --success: #22c55e;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        
+        .player-box { 
+            width: 100%; aspect-ratio: 16/9; background: #000; 
+            border-radius: 12px; margin-bottom: 20px; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            border: 2px solid #334155; position: relative;
+        }
+        iframe, video { width: 100%; height: 100%; border: none; }
+
+        .resume-toast {
+            position: absolute; bottom: 20px; left: 20px;
+            background: rgba(99, 102, 241, 0.9); padding: 8px 15px;
+            border-radius: 5px; font-size: 14px; display: none;
+        }
+
+        .input-section { 
+            background: var(--card); padding: 20px; border-radius: 12px; 
+            display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;
+        }
+        input { 
+            padding: 12px; border-radius: 8px; border: 1px solid #334155; 
+            background: #0f172a; color: white; font-size: 16px; 
+        }
+        button { 
+            padding: 12px; border: none; border-radius: 8px; 
+            font-weight: bold; cursor: pointer; color: white;
+        }
+        .btn-add { background: var(--primary); }
+        
+        .list-item { 
+            background: var(--card); padding: 15px; border-radius: 10px; 
+            margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .info { cursor: pointer; flex: 1; }
+        .progress-text { font-size: 12px; color: #94a3b8; display: block; margin-top: 4px; }
+        .del-btn { background: var(--accent); padding: 8px; font-size: 12px; width: auto; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="text-align: center; color: var(--primary);">Video Hub + Auto-Resume</h2>
+
+    <div class="player-box" id="mainPlayer">
+        <p>Select a video to start</p>
+        <div id="resumeToast" class="resume-toast">Resuming from last position...</div>
+    </div>
+
+    <div class="input-section">
+        <label style="font-size: 14px; color: #94a3b8;">Local Video (Autosaves Progress):</label>
+        <input type="file" id="localPicker" accept="video/*" onchange="addLocalVideo(event)">
+        
+        <hr style="width:100%; border: 0.5px solid #334155;">
+        
+        <input type="text" id="webTitle" placeholder="Web Movie Title">
+        <input type="url" id="webUrl" placeholder="https://site.com/video">
+        <button class="btn-add" onclick="addWebVideo()">+ Add Web Link</button>
+    </div>
+
+    <div id="videoList"></div>
+</div>
+
+<script>
+    let videos = JSON.parse(localStorage.getItem('hub_videos')) || [];
+    let watchHistory = JSON.parse(localStorage.getItem('hub_history')) || {};
+
+    function render() {
+        const list = document.getElementById('videoList');
+        list.innerHTML = '';
+        videos.forEach((vid, i) => {
+            const savedTime = watchHistory[vid.title] || 0;
+            const timeDisplay = savedTime > 0 ? `Stopped at ${Math.floor(savedTime / 60)}m ${Math.floor(savedTime % 60)}s` : 'New';
+            
+            const item = document.createElement('div');
+            item.className = 'list-item';
+            item.innerHTML = `
+                <div class="info" onclick="playVideo('${vid.url}', '${vid.type}', '${vid.title}')">
+                    <strong>${vid.title}</strong>
+                    <span class="progress-text">${timeDisplay}</span>
+                </div>
+                <button class="del-btn" onclick="removeVideo(${i})">Delete</button>
+            `;
+            list.appendChild(item);
+        });
+    }
+
+    function addLocalVideo(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const localURL = URL.createObjectURL(file);
+            videos.push({ title: file.name, url: localURL, type: 'local' });
+            save();
+        }
+    }
+
+    function addWebVideo() {
+        const title = document.getElementById('webTitle').value;
+        const url = document.getElementById('webUrl').value;
+        if (title && url) {
+            videos.push({ title, url, type: 'web' });
+            save();
+            document.getElementById('webTitle').value = '';
+            document.getElementById('webUrl').value = '';
+        }
+    }
+
+    function playVideo(url, type, title) {
+        const player = document.getElementById('mainPlayer');
+        const toast = document.getElementById('resumeToast');
+
+        if (type === 'local') {
+            player.innerHTML = `
+                <video id="vPlayer" controls autoplay>
+                    <source src="${url}">
+                </video>
+                <div id="resumeToast" class="resume-toast">Resuming...</div>`;
+            
+            const v = document.getElementById('vPlayer');
+            
+            // Check for saved position
+            v.onloadedmetadata = () => {
+                if (watchHistory[title]) {
+                    v.currentTime = watchHistory[title];
+                    document.getElementById('resumeToast').style.display = 'block';
+                    setTimeout(() => document.getElementById('resumeToast').style.display = 'none', 3000);
+                }
+            };
+
+            // Save progress every 2 seconds
+            v.ontimeupdate = () => {
+                watchHistory[title] = v.currentTime;
+                localStorage.setItem('hub_history', JSON.stringify(watchHistory));
+            };
+        } else {
+            // Web/Streaming Logic
+            player.innerHTML = `<iframe src="${url}" allowfullscreen></iframe>`;
+        }
+        player.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function removeVideo(i) {
+        videos.splice(i, 1);
+        save();
+    }
+
+    function save() {
+        localStorage.setItem('hub_videos', JSON.stringify(videos));
+        render();
+    }
+
+    render();
+</script>
+</body>
+</html>
