@@ -1,167 +1,180 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Video Hub Pro</title>
-    <style>
-        :root {
-            --bg: #0f172a; --card: #1e293b; --primary: #6366f1;
-            --accent: #f43f5e; --text: #f8fafc; --success: #22c55e;
-        }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        
-        .player-box { 
-            width: 100%; aspect-ratio: 16/9; background: #000; 
-            border-radius: 12px; margin-bottom: 20px; overflow: hidden;
-            display: flex; align-items: center; justify-content: center;
-            border: 2px solid #334155; position: relative;
-        }
-        iframe, video { width: 100%; height: 100%; border: none; }
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CineVault Lite</title>
 
-        .resume-toast {
-            position: absolute; bottom: 20px; left: 20px;
-            background: rgba(99, 102, 241, 0.9); padding: 8px 15px;
-            border-radius: 5px; font-size: 14px; display: none;
-        }
-
-        .input-section { 
-            background: var(--card); padding: 20px; border-radius: 12px; 
-            display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;
-        }
-        input { 
-            padding: 12px; border-radius: 8px; border: 1px solid #334155; 
-            background: #0f172a; color: white; font-size: 16px; 
-        }
-        button { 
-            padding: 12px; border: none; border-radius: 8px; 
-            font-weight: bold; cursor: pointer; color: white;
-        }
-        .btn-add { background: var(--primary); }
-        
-        .list-item { 
-            background: var(--card); padding: 15px; border-radius: 10px; 
-            margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
-        }
-        .info { cursor: pointer; flex: 1; }
-        .progress-text { font-size: 12px; color: #94a3b8; display: block; margin-top: 4px; }
-        .del-btn { background: var(--accent); padding: 8px; font-size: 12px; width: auto; }
-    </style>
+<style>
+body{
+  background:#0b0f1a;
+  color:white;
+  font-family:Arial;
+  text-align:center;
+  padding:15px;
+}
+input,button{
+  padding:10px;
+  margin:5px;
+  border-radius:10px;
+  border:none;
+}
+button{background:#4f8ef7;color:white;}
+.video{
+  margin-top:15px;
+}
+iframe,video{
+  width:100%;
+  max-width:600px;
+  border-radius:10px;
+}
+.item{
+  background:#1a2235;
+  margin:8px;
+  padding:10px;
+  border-radius:10px;
+  word-break:break-all;
+}
+</style>
 </head>
+
 <body>
 
-<div class="container">
-    <h2 style="text-align: center; color: var(--primary);">Video Hub + Auto-Resume</h2>
+<h2>🎬 CineVault Lite</h2>
 
-    <div class="player-box" id="mainPlayer">
-        <p>Select a video to start</p>
-        <div id="resumeToast" class="resume-toast">Resuming from last position...</div>
-    </div>
+<input id="url" placeholder="Paste video link">
+<br>
+<button onclick="play()">▶️ Play</button>
+<button onclick="save()">⭐ Save</button>
+<button onclick="openTool()">⬇ Download</button>
 
-    <div class="input-section">
-        <label style="font-size: 14px; color: #94a3b8;">Local Video (Autosaves Progress):</label>
-        <input type="file" id="localPicker" accept="video/*" onchange="addLocalVideo(event)">
-        
-        <hr style="width:100%; border: 0.5px solid #334155;">
-        
-        <input type="text" id="webTitle" placeholder="Web Movie Title">
-        <input type="url" id="webUrl" placeholder="https://site.com/video">
-        <button class="btn-add" onclick="addWebVideo()">+ Add Web Link</button>
-    </div>
+<div class="video" id="player"></div>
 
-    <div id="videoList"></div>
-</div>
+<h3>📂 Library</h3>
+<div id="list"></div>
+
+<h3>🕓 History</h3>
+<div id="history"></div>
 
 <script>
-    let videos = JSON.parse(localStorage.getItem('hub_videos')) || [];
-    let watchHistory = JSON.parse(localStorage.getItem('hub_history')) || {};
+let current="";
 
-    function render() {
-        const list = document.getElementById('videoList');
-        list.innerHTML = '';
-        videos.forEach((vid, i) => {
-            const savedTime = watchHistory[vid.title] || 0;
-            const timeDisplay = savedTime > 0 ? `Stopped at ${Math.floor(savedTime / 60)}m ${Math.floor(savedTime % 60)}s` : 'New';
-            
-            const item = document.createElement('div');
-            item.className = 'list-item';
-            item.innerHTML = `
-                <div class="info" onclick="playVideo('${vid.url}', '${vid.type}', '${vid.title}')">
-                    <strong>${vid.title}</strong>
-                    <span class="progress-text">${timeDisplay}</span>
-                </div>
-                <button class="del-btn" onclick="removeVideo(${i})">Delete</button>
-            `;
-            list.appendChild(item);
-        });
-    }
+function play(u){
+  let url=u||document.getElementById("url").value;
+  current=url;
+  let p=document.getElementById("player");
+  p.innerHTML="";
 
-    function addLocalVideo(event) {
-        const file = event.target.files[0];
-        if (file) {
-            const localURL = URL.createObjectURL(file);
-            videos.push({ title: file.name, url: localURL, type: 'local' });
-            save();
-        }
-    }
+  localStorage.setItem("last",url);
 
-    function addWebVideo() {
-        const title = document.getElementById('webTitle').value;
-        const url = document.getElementById('webUrl').value;
-        if (title && url) {
-            videos.push({ title, url, type: 'web' });
-            save();
-            document.getElementById('webTitle').value = '';
-            document.getElementById('webUrl').value = '';
-        }
-    }
+  // YouTube
+  if(url.includes("youtube.com")||url.includes("youtu.be")){
+    let id=url.split("v=")[1]||url.split("youtu.be/")[1];
+    if(id) id=id.split("&")[0];
 
-    function playVideo(url, type, title) {
-        const player = document.getElementById('mainPlayer');
-        const toast = document.getElementById('resumeToast');
+    p.innerHTML=`<iframe src="https://www.youtube.com/embed/${id}" allowfullscreen></iframe>`;
+  }
 
-        if (type === 'local') {
-            player.innerHTML = `
-                <video id="vPlayer" controls autoplay>
-                    <source src="${url}">
-                </video>
-                <div id="resumeToast" class="resume-toast">Resuming...</div>`;
-            
-            const v = document.getElementById('vPlayer');
-            
-            // Check for saved position
-            v.onloadedmetadata = () => {
-                if (watchHistory[title]) {
-                    v.currentTime = watchHistory[title];
-                    document.getElementById('resumeToast').style.display = 'block';
-                    setTimeout(() => document.getElementById('resumeToast').style.display = 'none', 3000);
-                }
-            };
+  // direct video
+  else if(url.match(/\.(mp4|webm|ogg)$/)){
+    p.innerHTML=`<video id="v" controls src="${url}"></video>`;
 
-            // Save progress every 2 seconds
-            v.ontimeupdate = () => {
-                watchHistory[title] = v.currentTime;
-                localStorage.setItem('hub_history', JSON.stringify(watchHistory));
-            };
-        } else {
-            // Web/Streaming Logic
-            player.innerHTML = `<iframe src="${url}" allowfullscreen></iframe>`;
-        }
-        player.scrollIntoView({ behavior: 'smooth' });
-    }
+    setTimeout(()=>{
+      let v=document.getElementById("v");
+      let t=localStorage.getItem(url);
+      if(v && t) v.currentTime=t;
 
-    function removeVideo(i) {
-        videos.splice(i, 1);
-        save();
-    }
+      if(v){
+        v.ontimeupdate=()=>localStorage.setItem(url,v.currentTime);
+      }
+    },500);
+  }
 
-    function save() {
-        localStorage.setItem('hub_videos', JSON.stringify(videos));
-        render();
-    }
+  else{
+    p.innerHTML="❌ Can't play this link";
+  }
 
-    render();
+  addHistory(url);
+}
+
+// save
+function save(){
+  let url=document.getElementById("url").value;
+  if(!url)return;
+
+  let list=JSON.parse(localStorage.getItem("list")||"[]");
+  if(!list.includes(url)){
+    list.push(url);
+    localStorage.setItem("list",JSON.stringify(list));
+  }
+  render();
+}
+
+// render library
+function render(){
+  let list=JSON.parse(localStorage.getItem("list")||"[]");
+  let div=document.getElementById("list");
+  div.innerHTML="";
+
+  list.forEach((u,i)=>{
+    div.innerHTML+=`
+    <div class="item">
+      ${u}
+      <br>
+      <button onclick="play('${u}')">Play</button>
+      <button onclick="del(${i})">Delete</button>
+    </div>`;
+  });
+}
+
+// delete
+function del(i){
+  let list=JSON.parse(localStorage.getItem("list")||"[]");
+  list.splice(i,1);
+  localStorage.setItem("list",JSON.stringify(list));
+  render();
+}
+
+// history
+function addHistory(url){
+  let h=JSON.parse(localStorage.getItem("hist")||"[]");
+  h.unshift(url);
+  h=h.slice(0,10);
+  localStorage.setItem("hist",JSON.stringify(h));
+  renderHist();
+}
+
+function renderHist(){
+  let h=JSON.parse(localStorage.getItem("hist")||"[]");
+  let div=document.getElementById("history");
+  div.innerHTML="";
+
+  h.forEach(u=>{
+    div.innerHTML+=`
+    <div class="item">
+      ${u}
+      <br>
+      <button onclick="play('${u}')">Play</button>
+    </div>`;
+  });
+}
+
+// downloader (safe redirect)
+function openTool(){
+  if(!current)return alert("Play something first");
+  let link="https://cobalt.tools/?url="+encodeURIComponent(current);
+  window.open(link,"_blank");
+}
+
+// load
+window.onload=()=>{
+  render();
+  renderHist();
+  let last=localStorage.getItem("last");
+  if(last){
+    document.getElementById("url").value=last;
+  }
+}
 </script>
+
 </body>
 </html>
